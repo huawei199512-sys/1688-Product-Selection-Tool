@@ -4,8 +4,8 @@ React + Express 单服务应用
 
 ## 功能
 
-web测试地址：https://product-matching-tool-web.onrender.com/
-Web testing address: https://product-matching-tool-web.onrender.com/
+web测试地址：https://product-matching-tool-web.onrender.com/   首次启动需要约等待50s
+Web testing address: https://product-matching-tool-web.onrender.com/   The first startup takes about 50 seconds to wait
 
 
 - **图片搜索**：本地上传 / 图片URL / 图片ID 三种方式，先 `upload_img` 取图片ID再 `item_search_img`，快且稳
@@ -38,8 +38,8 @@ React+Express Single Service Application
 
 ##Function
 
-Web testing address: https://product-matching-tool-web.onrender.com/
-Web testing address:  https://product-matching-tool-web.onrender.com/
+Web testing address: https://product-matching-tool-web.onrender.com/   The first startup takes about 50 seconds to wait
+Web testing address:  https://product-matching-tool-web.onrender.com/  The first startup takes about 50 seconds to wait
 
 
 -* * Image Search * *: There are three methods: local upload, image URL, and image ID. First, 'upload_img' takes the image ID, and then 'item_dearch_img', which is fast and stable

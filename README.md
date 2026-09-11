@@ -1,6 +1,6 @@
 # 图片选品工具 (Web版) — 1688商品匹配
 
-React + Express 单服务应用（前端产物 + 后端 API 一起部署）
+React + Express 单服务应用
 
 ## 功能
 
@@ -16,15 +16,6 @@ Web testing address: https://product-matching-tool-web.onrender.com/
 - **识图提问**：商品卡片悬停出现按钮，弹框内针对该商品提问
 
 
-## 本地运行
-
-```bash
-npm install
-npm start
-# 访问 http://localhost:3001    后台 http://localhost:3001/admin
-```
-
-默认管理员账号：`admin` / `onebound`（可用环境变量覆盖）
 
 ## 主要接口
 
@@ -40,5 +31,37 @@ npm start
 | `GET /api/image?url=` | 图片代理 |
 
 
-- 免费方案 15 分钟无访问会休眠，冷启动约 30–60 秒
-- 商品图片务必通过 `/api/image` 代理访问，直连 alicdn 会因 Referer 防盗链返回 403
+
+Image Selection Tool (Web Version) -1688 Product Matching
+
+React+Express Single Service Application
+
+##Function
+
+Web testing address: https://product-matching-tool-web.onrender.com/
+Web testing address:  https://product-matching-tool-web.onrender.com/
+
+
+-* * Image Search * *: There are three methods: local upload, image URL, and image ID. First, 'upload_img' takes the image ID, and then 'item_dearch_img', which is fast and stable
+-* * Keyword search * *, popular rankings, product details (including SKU, minimum batch size, and detailed images)
+-* * Account System * *: Registration/Login (password stored in scrypt hash)
+-* * Isolate Key by Account * *: Browsing with a public key without logging in; After logging in, you can configure your own key/secret key, and all searches/details/image searches/orders for this account will be done using your own key
+-* * Shopping cart ordering * *: Automatically split orders by seller (merge orders from the same seller, split orders from different sellers); Ordering requires logging in and configuring your own key
+-* * Image recognition question * *: A button appears when hovering over the product card, and a question is asked about the product in the pop-up box
+
+
+
+##Main interfaces
+
+|Interface | Description|
+|---|---|
+| `GET /api/search? Q=` | Keyword search|
+|GET/app/match/detail/: num_iid | Product details|
+|POST/app/upload/image | Retrieve the image ID, body: {imgcode} (base64 or image URL)|
+|POST/app/upload/image/file | Take the image ID, with the body being a binary image|
+|POST/app/match | Image search, body: {imgid} or {imageURL}|
+|POST/app/chat/product | Product image recognition question|
+|POST/pai/order/create | Create an order (automatically split by seller)|
+| `GET /api/image? Url=` | Image Proxy|
+
+

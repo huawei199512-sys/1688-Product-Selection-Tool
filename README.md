@@ -4,6 +4,10 @@ React + Express 单服务应用（前端产物 + 后端 API 一起部署），�
 
 ## 功能
 
+web测试地址：https://product-matching-tool-web.onrender.com/
+Web testing address: https://product-matching-tool-web.onrender.com/
+
+
 - **图片搜索**：本地上传 / 图片URL / 图片ID 三种方式，先 `upload_img` 取图片ID再 `item_search_img`，快且稳
 - **关键词搜索**、热门榜单、商品详情（含 SKU、最小起批量、详情图）
 - **账号体系**：注册 / 登录（密码 scrypt 哈希存储）

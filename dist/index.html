@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 关键：不发送 Referer，直接绕开 alicdn 等 CDN 的 Referer 防盗链（实测无 Referer 返回 200，本地 Referer 返回 403） -->
+    <meta name="referrer" content="no-referrer" />
+    <title>图片选品工具 - 1688商品匹配</title>
+    <style>
+      .pmt-ask-layer{position:absolute;left:0;right:0;bottom:0;display:none;justify-content:center;padding:10px;background:linear-gradient(to top,rgba(0,0,0,.55),rgba(0,0,0,0));}
+      .product-card:hover .pmt-ask-layer{display:flex}
+      .pmt-ask-btn{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:12px;line-height:1.2;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+      .pmt-ask-btn:hover{background:#1d4ed8}
+      #pmt-qa-mask{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px}
+      #pmt-qa-box{background:#fff;border-radius:14px;max-width:540px;width:100%;max-height:86vh;overflow:auto;padding:18px;box-sizing:border-box}
+      #pmt-qa-box h3{margin:0 0 12px;font-size:16px;color:#111827}
+      #pmt-qa-head{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+      #pmt-qa-head img{width:56px;height:56px;object-fit:cover;border-radius:8px;flex:0 0 auto;background:#f3f4f6}
+      #pmt-qa-head div{font-size:13px;color:#374151;line-height:1.5;max-height:66px;overflow:hidden}
+      #pmt-qa-input{width:100%;min-height:64px;padding:10px;border:1px solid #d1d5db;border-radius:10px;font-size:14px;box-sizing:border-box;resize:vertical;outline:none}
+      #pmt-qa-input:focus{border-color:#2563eb}
+      #pmt-qa-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:10px}
+      #pmt-qa-actions button{border:0;border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer}
+      #pmt-qa-send{background:#2563eb;color:#fff}
+      #pmt-qa-send:hover{background:#1d4ed8}
+      #pmt-qa-close{background:#eef2ff;color:#3730a3}
+      #pmt-qa-answer{margin-top:14px;padding:12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;font-size:13px;color:#1f2937;white-space:pre-wrap;line-height:1.7;display:none}
+    </style>
+    <script>
+      (function () {
+        var langCache = { v: '', at: 0 };
+        function currentLang() {
+          var now = Date.now();
+          if (langCache.v && now - langCache.at < 1500) return langCache.v;
+          var text = document.body ? (document.body.innerText || '') : '';
+          var value = /购物车|加入购物车|立即购买|会员中心|搜索/.test(text) ? 'zh' : 'en';
+          langCache.v = value;
+          langCache.at = now;
+          return value;
+        }
+        function readProduct(card) {
+          var img = card.querySelector('img');
+          var titleEl = card.querySelector('h3');
+          var priceEl = card.querySelector('span.font-bold');
+          var shopEl = card.querySelector('span.truncate');
+          var info = card.innerText || '';
+          var salesMatch = info.match(/([\d,]+)\s*(?:件成交|sold)/i);
+          return {
+            imageUrl: img ? img.src : '',
+            title: titleEl ? titleEl.textContent.trim() : '',
+            price: priceEl ? priceEl.textContent.replace(/[^\d.]/g, '') : '',
+            sales: salesMatch ? salesMatch[1].replace(/,/g, '') : '',
+            shopName: shopEl ? shopEl.textContent.trim() : ''
+          };
+        }
+        function closeQa() {
+          var mask = document.getElementById('pmt-qa-mask');
+          if (mask) mask.remove();
+        }
+        function openQa(card) {
+          var product = readProduct(card);
+          var en = currentLang() === 'en';
+          closeQa();
+          var mask = document.createElement('div');
+          mask.id = 'pmt-qa-mask';
+          mask.innerHTML =
+            '<div id="pmt-qa-box">' +
+            '<h3>' + (en ? 'Ask about this product' : '识图提问') + '</h3>' +
+            '<div id="pmt-qa-head"><img src="' + (product.imageUrl || '') + '" alt=""><div>' +
+            '<b>' + (product.title || '') + '</b><br>' +
+            (en ? 'Price: ¥' : '价格：¥') + (product.price || '-') + '　' + (en ? 'Sold: ' : '成交：') + (product.sales || 0) +
+            '</div></div>' +
+            '<textarea id="pmt-qa-input" placeholder="' + (en ? 'e.g. Is the price negotiable? How is the quality?' : '例如：这个价格还有议价空间吗？质量怎么样？适合什么人群？') + '"></textarea>' +
+            '<div id="pmt-qa-actions">' +
+            '<button id="pmt-qa-close">' + (en ? 'Close' : '关闭') + '</button>' +
+            '<button id="pmt-qa-send">' + (en ? 'Ask' : '提问') + '</button>' +
+            '</div>' +
+            '<div id="pmt-qa-answer"></div>' +
+            '</div>';
+          document.body.appendChild(mask);
+          mask.addEventListener('click', function (e) { if (e.target === mask) closeQa(); });
+          document.getElementById('pmt-qa-close').addEventListener('click', closeQa);
+          var input = document.getElementById('pmt-qa-input');
+          var answer = document.getElementById('pmt-qa-answer');
+          var send = document.getElementById('pmt-qa-send');
+          function submit() {
+            var q = (input.value || '').trim();
+            if (!q) { input.focus(); return; }
+            answer.style.display = 'block';
+            answer.textContent = en ? 'Thinking...' : '思考中...';
+            send.disabled = true;
+            fetch('/api/chat/product', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ product: product, question: q, lang: en ? 'en' : 'zh' })
+            }).then(function (r) { return r.json(); }).then(function (d) {
+              answer.textContent = (d && d.data && d.data.response) ? d.data.response : (en ? 'No answer' : '暂无回答');
+            }).catch(function () {
+              answer.textContent = en ? 'Request failed, please retry' : '请求失败，请重试';
+            }).then(function () { send.disabled = false; });
+          }
+          send.addEventListener('click', submit);
+          input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit();
+          });
+          input.focus();
+        }
+        function ensureButtons() {
+          var en = currentLang() === 'en';
+          var label = en ? 'Ask about this product' : '识图提问';
+          var cards = document.querySelectorAll('.product-card');
+          for (var i = 0; i < cards.length; i++) {
+            var card = cards[i];
+            var existing = card.querySelector('.pmt-ask-layer');
+            if (existing) {
+              var b = existing.querySelector('.pmt-ask-btn');
+              if (b && b.textContent !== label) b.textContent = label;
+              continue;
+            }
+            var holder = card.firstElementChild;
+            if (!holder) continue;
+            var layer = document.createElement('div');
+            layer.className = 'pmt-ask-layer';
+            var btn = document.createElement('button');
+            btn.className = 'pmt-ask-btn';
+            btn.textContent = label;
+            btn.addEventListener('click', function (ev) {
+              ev.preventDefault();
+              ev.stopPropagation();
+              var card = this.closest ? this.closest('.product-card') : null;
+              if (card) openQa(card);
+            });
+            layer.appendChild(btn);
+            holder.appendChild(layer);
+          }
+        }
+        var rescanTimer = null;
+        function scheduleRescan() {
+          if (rescanTimer) return;
+          rescanTimer = setTimeout(function () {
+            rescanTimer = null;
+            ensureButtons();
+          }, 300);
+        }
+        function boot() {
+          ensureButtons();
+          try {
+            new MutationObserver(scheduleRescan)
+              .observe(document.body, { childList: true, subtree: true });
+          } catch (e) {}
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', boot);
+        } else {
+          boot();
+        }
+      })();
+    </script>
+    <script>
+      (function () {
+        if (!window.fetch) return;
+        var originalFetch = window.fetch.bind(window);
+        var CONFIG_MSG = '需要登录并配置正确的key和秘钥\n\nPlease log in and configure a valid API Key and Secret.\n（会员中心 → API配置 / Member Center → API Config）';
+        var LOGIN_MSG = '请先登录后再配置key和秘钥\n\nPlease log in first, then configure your API Key and Secret.';
+        var PERMISSION_MSG = '请检查对应APIkey的权限\n\nPlease check the permission of the corresponding API key.';
+        var lastAlert = { text: '', at: 0 };
+        function alertOnce(text) {
+          var now = Date.now();
+          if (text === lastAlert.text && now - lastAlert.at < 3000) return;
+          lastAlert.text = text;
+          lastAlert.at = now;
+          alert(text);
+        }
+        function readJson(key, def) {
+          try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch (e) { return def; }
+        }
+        function writeJson(key, val) {
+          try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
+        }
+        // 与前端共用的登录态：local_sessions 里有 token 就带上
+        function getToken() {
+          var sessions = readJson('local_sessions', []);
+          if (!Array.isArray(sessions) || !sessions.length) return '';
+          for (var i = sessions.length - 1; i >= 0; i--) {
+            var s = sessions[i];
+            if (s && s.token && (!s.expiresAt || new Date(s.expiresAt) > new Date())) return s.token;
+          }
+          return '';
+        }
+        function rememberLogin(body, data) {
+          try {
+            var users = readJson('local_users', []);
+            if (!Array.isArray(users)) users = [];
+            if (!users.some(function (u) { return u && u.id === data.id; })) {
+              // 不在本地保存密码明文
+              users.push({ id: data.id, username: data.username, createdAt: new Date().toISOString() });
+              writeJson('local_users', users);
+            }
+            var sessions = readJson('local_sessions', []);
+            if (!Array.isArray(sessions)) sessions = [];
+            sessions.push({ userId: data.id, token: data.token, expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString() });
+            writeJson('local_sessions', sessions);
+          } catch (e) {}
+        }
+        function notify(data, method, url) {
+          if (!data || !data.code) return;
+          if (data.code === 'NEED_API_CONFIG') {
+            if (!/\/api\/order\//.test(url) || method !== 'POST') return;
+            alertOnce(CONFIG_MSG);
+            if (window.location.pathname !== '/member') window.location.href = '/member';
+            return;
+          }
+          if (data.code === 'NEED_LOGIN') {
+            if (method !== 'POST') return;
+            alertOnce(LOGIN_MSG);
+            if (window.location.pathname !== '/member') window.location.href = '/member';
+            return;
+          }
+          if (data.code === 'API_PERMISSION') {
+            alertOnce(PERMISSION_MSG);
+          }
+        }
+        window.fetch = function (input, init) {
+          var url = '';
+          var method = 'GET';
+          try {
+            if (typeof input === 'string') url = input;
+            else if (input && input.url) url = input.url;
+            method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+          } catch (e) {}
+          var options = init;
+          if (url.indexOf('/api/') !== -1 && !/\/api\/user\/(login|register)/.test(url)) {
+            var token = getToken();
+            if (token) {
+              try {
+                var headers = new Headers((init && init.headers) || (typeof input !== 'string' && input && input.headers) || {});
+                headers.set('x-user-token', token);
+                options = Object.assign({}, init || {}, { headers: headers });
+              } catch (e) {}
+            }
+          }
+          var result = originalFetch(input, options);
+          if (url.indexOf('/api/') === -1) return result;
+          return result.then(function (response) {
+            try {
+              var ct = response.headers && response.headers.get ? (response.headers.get('content-type') || '') : '';
+              if (ct.indexOf('application/json') !== -1) {
+                response.clone().json().then(function (data) {
+                  if (data && data.success && data.data && data.data.token && /\/api\/user\/(login|register)/.test(url)) {
+                    rememberLogin(init && init.body, data.data);
+                  }
+                  notify(data, method, url);
+                }).catch(function () {});
+              }
+            } catch (e) {}
+            return response;
+          });
+        };
+      })();
+    </script>
+    <script>
+      (function () {
+        // 图片兜底：页面已设 no-referrer，正常情况 CDN 图片可直连；若个别图片仍加载失败，自动改走后端代理重试一次
+        document.addEventListener('error', function (e) {
+          var t = e.target;
+          if (!t || t.tagName !== 'IMG') return;
+          var src = t.getAttribute('src') || '';
+          if (!src || src.indexOf('/api/image?') === 0 || src.indexOf('data:') === 0 || src.indexOf('blob:') === 0) return;
+          var orig = t.getAttribute('data-pmt-orig') || src;
+          if (!orig) return;
+          t.setAttribute('data-pmt-orig', orig);
+          t.setAttribute('src', '/api/image?url=' + encodeURIComponent(orig));
+        }, true);
+      })();
+    </script>
+    <script>
+      (function () {
+        // 顶部新增按钮「获取同类API接口」：样式与「中英切换 / 登录」保持一致，点击直接打开万邦控制台
+        var TARGET = 'https://console.open.onebound.cn/console/?i=c-1813';
+        var BTN_CLASS = 'flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors';
+        var ICON = '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>';
+        function appLang() {
+          var sel = document.querySelector('header select');
+          if (sel) return sel.value === 'en' ? 'en' : 'zh';
+          // 结果页没有语言切换器，按页面文案判断
+          var text = document.body ? (document.body.innerText || '') : '';
+          return /购物车|加入购物车|会员中心|返回|搜索/.test(text) ? 'zh' : 'en';
+        }
+        function ensureButton() {
+          var header = document.querySelector('header');
+          if (!header) return;
+          var label = appLang() === 'en' ? 'Get Similar APIs' : '获取同类API接口';
+          var btn = document.getElementById('pmt-api-btn');
+          if (btn) {
+            if (btn.getAttribute('data-label') !== label) {
+              btn.setAttribute('data-label', label);
+              var s = btn.querySelector('span');
+              if (s) s.textContent = label;
+            }
+            return;
+          }
+          // 定位插入点：有语言切换器则插在它右边；否则插在 header 最后一个按钮之前
+          var sel = header.querySelector('select');
+          var anchor = null;
+          if (sel && sel.parentNode) {
+            anchor = sel.parentNode.nextSibling;
+          }
+          else {
+            var btns = Array.prototype.slice.call(header.querySelectorAll('button'));
+            anchor = btns.length ? btns[btns.length - 1] : null;
+          }
+          btn = document.createElement('button');
+          btn.id = 'pmt-api-btn';
+          btn.type = 'button';
+          btn.className = BTN_CLASS;
+          btn.style.whiteSpace = 'nowrap';
+          btn.setAttribute('data-label', label);
+          btn.innerHTML = ICON + '<span class="text-sm font-medium text-gray-700"></span>';
+          btn.querySelector('span').textContent = label;
+          btn.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            window.open(TARGET, '_blank', 'noopener,noreferrer');
+          });
+          if (anchor && anchor.parentNode) {
+            anchor.parentNode.insertBefore(btn, anchor);
+          }
+          else if (sel && sel.parentNode && sel.parentNode.parentNode) {
+            sel.parentNode.parentNode.appendChild(btn);
+          }
+          else {
+            header.appendChild(btn);
+          }
+        }
+        var timer2 = null;
+        function schedule() {
+          if (timer2) return;
+          timer2 = setTimeout(function () { timer2 = null; ensureButton(); }, 300);
+        }
+        function boot() {
+          ensureButton();
+          try { new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }); } catch (e) {}
+        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+        else boot();
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-DBeVaNzQ-fix5.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CQT1MrRW.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

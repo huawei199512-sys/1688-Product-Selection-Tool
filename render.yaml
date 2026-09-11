@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: product-matching-tool-web
+    env: node
+    region: singapore          # 新加坡区域：海外IP，规避1688第三方API风控
+    plan: free                 # 免费方案（512MB内存，15分钟无访问会休眠）
+    buildCommand: npm install --omit=dev
+    startCommand: node dist/server/server.js
+    healthCheckPath: /         # 健康检查端点（首页返回HTML即可判活）
+    autoDeploy: true           # main分支推送自动部署
+    envVars:
+      - key: NODE_VERSION
+        value: "20.11.0"
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "8000"
+      # 管理员后台账号（/admin）。不填则默认 admin / onebound
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false            # 在 Render 控制台填写（建议必填）
+      # 后端查看账号数据接口 /api/user/list?key=xxx 的密钥。不填则自动生成并写入 data/admin.key
+      - key: ADMIN_KEY
+        sync: false            # 在 Render 控制台填写（建议必填）
+      # 未登录访客使用的公共 API key（不填则用内置默认）
+      - key: PUBLIC_API_KEY
+        sync: false
+      - key: PUBLIC_API_SECRET
+        sync: false
+    # 免费方案注意事项：
+    # 1. 15分钟无访问会自动休眠，下次访问冷启动约30-60秒
+    # 2. 磁盘为临时存储：dist/server/data/ 下的用户账号、key配置、地址快照在重启/重新部署后会丢失
+    #    如需持久化，请升级付费方案并挂载 Render Disk，同时设置环境变量 DATA_DIR 指向挂载路径
+    # 3. 商品图片走 /api/image 代理（带1688 Referer），避免 CDN 防盗链导致的 403

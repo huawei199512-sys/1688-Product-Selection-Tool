@@ -25,8 +25,11 @@ const admin_1 = require("./routes/admin");
 const imageProxy_1 = require("./routes/imageProxy");
 const apiConfigService_1 = require("./services/apiConfigService");
 const userStore_1 = require("./services/userStore");
+const accessLog_1 = require("./services/accessLog");
 const app = (0, express_1.default)();
 const PORT = parseInt(process.env.PORT || '3001', 10);
+// 部署在 Render/Nginx 反向代理后，需要信任代理才能拿到真实客户端IP（X-Forwarded-For）
+app.set('trust proxy', true);
 app.use((0, cors_1.default)());
 app.use(express_1.default.json({ limit: '50mb' }));
 app.use(express_1.default.urlencoded({ extended: true, limit: '50mb' }));
@@ -96,6 +99,32 @@ distDir = findDistDir();
 loadAssets();
 // 确保存在管理员账号（可用环境变量 ADMIN_USERNAME / ADMIN_PASSWORD 覆盖）
 (0, userStore_1.ensureAdminAccount)(process.env.ADMIN_USERNAME || 'admin', process.env.ADMIN_PASSWORD || 'onebound', !!process.env.ADMIN_PASSWORD);
+// 访问日志：按天记录「哪个IP访问了什么」（响应结束后写入，不影响请求耗时）
+app.use((req, res, next) => {
+    // 注意：必须在此处取路径。路由会把 req.url 改写为去掉挂载前缀后的值，
+    // 若等到响应结束再读，/api/user/me 会被记成 /me
+    const requestPath = req.path;
+    const requestQuery = req.query;
+    res.on('finish', () => {
+        try {
+            (0, accessLog_1.recordAccess)({
+                ip: (0, accessLog_1.clientIp)(req),
+                method: req.method,
+                path: requestPath,
+                query: requestQuery,
+                status: res.statusCode,
+                // 普通账号取 pmtUser，后台操作取 adminUser（后台路由不经过 /api 中间件）
+                user: req.pmtUser ? req.pmtUser.username : (req.adminUser ? req.adminUser.username : ''),
+                ua: req.get('user-agent') || '',
+            });
+        }
+        catch (error) {
+            // 日志失败不影响业务，但要能发现
+            console.error('[accessLog] record failed:', error && error.message ? error.message : error);
+        }
+    });
+    next();
+});
 // 按访客隔离 key：登录用户用自己的 key/秘钥，未登录访客用公共 key
 app.use('/api', (req, res, next) => {
     try {

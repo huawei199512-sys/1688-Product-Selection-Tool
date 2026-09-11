@@ -10,8 +10,6 @@ Web testing address: https://product-matching-tool-web.onrender.com/   The first
 
 - **图片搜索**：本地上传 / 图片URL / 图片ID 三种方式，先 `upload_img` 取图片ID再 `item_search_img`，快且稳
 - **关键词搜索**、热门榜单、商品详情（含 SKU、最小起批量、详情图）
-- **账号体系**：注册 / 登录（密码 scrypt 哈希存储）
-- **按账号隔离 Key**：未登录用公共 key 浏览；登录后可配置自己的 key/秘钥，下单全部走自己的 
 - **购物车下单**：按卖家自动拆分订单（同一卖家合并、不同卖家分单）；下单须登录且已配置自己的账户
 - **识图提问**：商品卡片悬停出现按钮，弹框内针对该商品提问
 

@@ -28,6 +28,9 @@ services:
         sync: false
       - key: PUBLIC_API_SECRET
         sync: false
+      # 每个 IP 的免费试用次数上限（未登录 / 未配置自己 key 的访客），超出后提示注册登录并配置 key
+      - key: FREE_REQUEST_LIMIT
+        value: "50"
     # 免费方案注意事项：
     # 1. 15分钟无访问会自动休眠，下次访问冷启动约30-60秒
     # 2. 磁盘为临时存储：dist/server/data/ 下的用户账号、key配置、地址快照在重启/重新部署后会丢失

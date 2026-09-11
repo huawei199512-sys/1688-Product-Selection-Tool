@@ -26,6 +26,7 @@ const imageProxy_1 = require("./routes/imageProxy");
 const apiConfigService_1 = require("./services/apiConfigService");
 const userStore_1 = require("./services/userStore");
 const accessLog_1 = require("./services/accessLog");
+const rateLimit_1 = require("./services/rateLimit");
 const app = (0, express_1.default)();
 const PORT = parseInt(process.env.PORT || '3001', 10);
 // 部署在 Render/Nginx 反向代理后，需要信任代理才能拿到真实客户端IP（X-Forwarded-For）
@@ -142,6 +143,33 @@ app.use('/api', (req, res, next) => {
         console.error('[api] resolve user key failed:', error);
     }
     next();
+});
+// 免费试用额度：未登录（或登录但未配置自己 key）的访客，搜索/详情/图搜/取图片ID 最多 FREE_REQUEST_LIMIT 次（按IP累计）
+['/api/search', '/api/match', '/api/upload'].forEach((prefix) => {
+    app.use(prefix, (req, res, next) => {
+        try {
+            // 已登录且配置了自己的 key/秘钥 → 不限额
+            if (req.pmtApiConfig) {
+                return next();
+            }
+            const result = (0, rateLimit_1.checkAndCount)((0, accessLog_1.clientIp)(req));
+            if (!result.allowed) {
+                console.log(`[rateLimit] 免费额度已用完 ip=${(0, accessLog_1.clientIp)(req)} used=${result.used}/${result.limit} path=${req.originalUrl}`);
+                return res.json({
+                    success: false,
+                    code: 'FREE_LIMIT_EXCEEDED',
+                    message: `免费试用次数已用完（${result.used}/${result.limit}），请注册登录并配置正确的key和秘钥`,
+                    data: result,
+                });
+            }
+            res.set('X-Free-Remaining', String(result.remaining));
+            next();
+        }
+        catch (error) {
+            console.error('[rateLimit] failed:', error && error.message ? error.message : error);
+            next();
+        }
+    });
 });
 app.use('/api/match', match_1.matchRouter);
 app.use('/api/history', history_1.historyRouter);

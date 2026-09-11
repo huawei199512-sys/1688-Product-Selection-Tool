@@ -164,6 +164,7 @@
         var CONFIG_MSG = '需要登录并配置正确的key和秘钥\n\nPlease log in and configure a valid API Key and Secret.\n（会员中心 → API配置 / Member Center → API Config）';
         var LOGIN_MSG = '请先登录后再配置key和秘钥\n\nPlease log in first, then configure your API Key and Secret.';
         var PERMISSION_MSG = '请检查对应APIkey的权限\n\nPlease check the permission of the corresponding API key.';
+        var LIMIT_MSG = '免费试用次数已用完\n\n请注册登录并配置正确的key和秘钥后继续使用\n\nFree trial limit reached. Please register/log in and configure a valid API Key and Secret.\n（会员中心 → API配置 / Member Center → API Config）';
         var lastAlert = { text: '', at: 0 };
         function alertOnce(text) {
           var now = Date.now();
@@ -219,6 +220,16 @@
           }
           if (data.code === 'API_PERMISSION') {
             alertOnce(PERMISSION_MSG);
+            return;
+          }
+          if (data.code === 'FREE_LIMIT_EXCEEDED') {
+            var limitMsg = LIMIT_MSG;
+            if (data.data && data.data.limit) {
+              limitMsg = '免费试用次数已用完（' + data.data.used + '/' + data.data.limit + '）\n\n' + LIMIT_MSG;
+            }
+            alertOnce(limitMsg);
+            if (window.location.pathname !== '/member') window.location.href = '/member';
+            return;
           }
         }
         window.fetch = function (input, init) {
